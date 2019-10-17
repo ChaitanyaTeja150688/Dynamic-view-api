@@ -6,18 +6,16 @@ var fs = require("fs");
 
 // Retrivies the drop down master values
 sharedController.getDropDownList = function (req, res) {
-    httpHelpers.makeGetRequest('sap', 'dropdown', function (error, response, body) {
+    const object = {
+        Appid: "BUS1001006",
+        Configid: "",
+        Nav_AppIDInfoH_AppIDInfo: req.body
+    }
+    httpHelpers.makePostRequest('sap', 'dropdown', object, function (error, response, body) {
         if (error) {
             console.log("Error " + error);
-        } else {     
-            fs.readFile("./DDValues.txt", "utf8", function(err, data) {
-                if(err) {
-                    return console.log(err);
-                }
-                res.json(sapTransforms.mapDropdownValues(JSON.parse(data)['d']['results'][0]['Nav_AppToFields']['results']));
-            });   
-            // var dropdownValues = sapTransforms.mapDropdownValues(JSON.parse(body)['d']['results'][0]['Nav_AppToFields']['results']);
-            // res.json(dropdownValues);
+        } else {
+            res.json(sapTransforms.mapDropdownValues(body['d']['Nav_AppIDInfoH_AppIDInfo']['results']));
         }
     });
 }

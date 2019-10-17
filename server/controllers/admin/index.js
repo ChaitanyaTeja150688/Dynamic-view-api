@@ -52,18 +52,21 @@ adminController.getConfigfields = function (req, res) {
         Appid: req.body.appId,
         Appname: req.body.appName,
         Nav_DefaultFields: req.body.defaultFields,
-        Nav_AppId_FieldConfig:[]
+        Nav_AppId_FieldConfig:[],
+        Nav_TableData: [],
+        Nav_LongText: [],
+        Nav_AppFieldSet_Dependent: []
     };
-    fs.writeFile("./sample1.txt", JSON.stringify(configData), function(err) {
-        if(err) {
-            return console.log(err);
-        }
-    });
+    // fs.writeFile("./sample1.txt", JSON.stringify(configData), function(err) {
+    //     if(err) {
+    //         return console.log(err);
+    //     }
+    // });
     httpHelpers.makePostRequest('sap', 'getConfigFields', configData, function (error, response, body) {
         if (error) {
              console.log("Error " + error);
         } else {
-            res.json(sapTransforms.mapConfigDetails(body['d']['Nav_AppId_FieldConfig']['results'], '', true));
+            res.json(sapTransforms.mapConfigConfiguration(body['d']));
         }
     });
 }
@@ -84,14 +87,19 @@ adminController.saveFields = function (req, res) {
         Configname: req.body.configName,
         UserSave: false,
         Nav_AppToFields: [],
-        Nav_DefaultFields: req.body.defaultFields
+        Nav_DefaultFields: req.body.defaultFields,
+        Nav_TableData: [],
+        Nav_LongText: [],
+        Nav_AppfieldToMessages: []
     };
     configRequest.Nav_AppToFields = sapTransforms.parseRequest(req.body, configRequest.Indicator);
-    fs.writeFile("./sample1.txt", JSON.stringify(req.body), function(err) {
-        if(err) {
-            return console.log(err);
-        }
-    });
+    configRequest.Nav_TableData = sapTransforms.parseSectionTabTablesRequest(req.body, configRequest.Indicator);
+    //configRequest.Nav_LongText = sapTransforms.parseSectionTabTablesRequest(req.body, configRequest.Indicator, true);
+    // fs.writeFile("./sample1.txt", JSON.stringify(configRequest), function(err) {
+    //     if(err) {
+    //         return console.log(err);
+    //     }
+    // });
     httpHelpers.makePostRequest('sap', 'saveConfig', configRequest, function (error, response, body) {
         if (error) {
             // console.log("Error " + error);
@@ -134,14 +142,16 @@ adminController.retreiveConfigDetails = function (req, res) {
         if (error) {
             console.log("Error " + error);
         } else {
-            fs.writeFile("./sample.txt", JSON.stringify(body), function(err) {
-                if(err) {
-                    return console.log(err);
-                }
-            });
+            // fs.writeFile("./sample.txt", JSON.stringify(body), function(err) {
+            //     if(err) {
+            //         return console.log(err);
+            //     }
+            // });
+            var configData = sapTransforms.mapConfigConfiguration(JSON.parse(body)['d']['results'][0], JSON.parse(body)['d']['results'][0]['Configname'], false, true);
             res.json(
                 {
-                    'data': sapTransforms.mapConfigDetails(JSON.parse(body)['d']['results'][0]['Nav_AppToFields']['results'], JSON.parse(body)['d']['results'][0]['Configname']).data,
+                    'data': configData.data,
+                    'dropdownList': configData.dropdownList,
                     'dependentList': sapTransforms.mapAppDependentList(JSON.parse(body)['d']['results'][0]['Nav_DefaultFields']['results']).dependentList
                 }
             );

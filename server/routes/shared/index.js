@@ -2,6 +2,6 @@ var express = require('express');
 var router = express.Router();
 var sharedController = require('../../controllers/shared');
 
-router.get('/dropDownList/:id', sharedController.getDropDownList);
+router.post('/dropDownList', sharedController.getDropDownList);
 
 module.exports = router;

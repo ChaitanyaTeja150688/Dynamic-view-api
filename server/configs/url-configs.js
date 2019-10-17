@@ -35,7 +35,7 @@ const urlConfig = {
         },
         'getConfig': {
             'url': '/AppFieldsSet?$filter=(Appid eq ',
-            'subUrl': ')&$expand=Nav_AppToFields,Nav_DefaultFields&',
+            'subUrl': ')&$expand=Nav_AppToFields,Nav_DefaultFields,Nav_LongText,Nav_TableData,Nav_AppFieldSet_Dependent&',
             'method': 'get',
             'convertedURL': ''
         },
@@ -45,9 +45,9 @@ const urlConfig = {
             'convertedURL': '/AppIdsSet'
         },
         'dropdown': {
-            'url': '/AppFieldsSet?$expand=Nav_AppToFields,Nav_AppToFields/Nav_FieldToDdvalues&',
-            'method': 'get',
-            'convertedURL': '/AppFieldsSet?$expand=Nav_AppToFields,Nav_AppToFields/Nav_FieldToDdvalues&'
+            'url': '/AppIDInfoHeaderSet',
+            'method': 'post',
+            'convertedURL': '/AppIDInfoHeaderSet'
         },
         'userSaveConfig': {
             'url': '/AppFieldsSet',

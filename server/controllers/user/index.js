@@ -24,9 +24,13 @@ userController.userSaveConfig = function (req, res) {
         KeyfieldInd: '',
         Nav_AppToFields: [],
         Nav_AppfieldToMessages: [],
-        Nav_DefaultFields: req.body.defaultFields
+        Nav_DefaultFields: req.body.defaultFields,
+        Nav_TableData: [],
+        Nav_LongText: []
     };
     configRequest.Nav_AppToFields = sapTransforms.parseRequest(req.body, configRequest.Indicator);
+    configRequest.Nav_TableData = sapTransforms.parseSectionTabTablesRequest(req.body, configRequest.Indicator);
+    //configRequest.Nav_LongText = sapTransforms.parseSectionTabTablesRequest(req.body, configRequest.Indicator, true);
     fs.writeFile("./sample2.txt", JSON.stringify(configRequest), function(err) {
         if(err) {
             return console.log(err);
@@ -61,7 +65,7 @@ userController.getUserWorkItemDetails = function(req, res) {
             console.log("Error " + error);
         } else {
             var filteredArray = JSON.parse(body)['d']['results'][0]['Nav_AppToFields']['results'];
-            res.json({data: sapTransforms.mapConfigDetails(filteredArray, JSON.parse(body)['d']['results'][0]['Configname']).data});
+            res.json(sapTransforms.mapConfigDetails(filteredArray, JSON.parse(body)['d']['results'][0]['Configname']));
         }
     });
 }
@@ -74,7 +78,7 @@ userController.getUserMaterialDetails = function(req, res) {
             console.log("Error " + error);
         } else {
             var filteredArray = JSON.parse(body)['d']['results'][0]['Nav_AppToFields']['results'];
-            res.json({data: sapTransforms.mapConfigDetails(filteredArray, JSON.parse(body)['d']['results'][0]['Configname']).data});
+            res.json(sapTransforms.mapConfigDetails(filteredArray, JSON.parse(body)['d']['results'][0]['Configname']));
         }
     });
 }

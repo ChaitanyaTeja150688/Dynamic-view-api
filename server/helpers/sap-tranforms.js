@@ -51,9 +51,47 @@ sapTransforms.mapAppDetails = function (appDetails) {
     return response;
 }
 
+sapTransforms.mapConfigConfiguration = function (configDetails, configName = '', newConfig = false, isEdit= false) {
+    var configFields = sapTransforms.mapConfigDetails(configDetails[!isEdit ? 'Nav_AppId_FieldConfig' : 'Nav_AppToFields']['results'], '', true);
+
+    var tableData = sapTransforms.mapConfigTableData(configDetails['Nav_TableData']['results'], false);
+    configFields.data.accordions = mergeArray(configFields.data.accordions, tableData.accordions);
+
+    // var longTextData = sapTransforms.mapConfigTableData(configDetails['Nav_LongText']['results'], true);
+    // longTextData.accordions.forEach(longTextSection => {
+    //     if (longTextSection) {
+    //         configFields.data.accordions.forEach(accordionSection => {
+    //             if (longTextSection.sectionId === accordionSection.sectionId) {
+    //                 accordionSection.tabs = mergeArray(accordionSection.tabs, longTextSection.tabs);
+    //             }
+    //         });
+    //     }
+    // })
+
+    configFields.dropdownList = mergeArray(configFields.dropdownList, tableData.dropdownList);
+    configFields['appDependentFieldSet'] = sapTransforms.appDependentFieldSet(configDetails['Nav_AppFieldSet_Dependent']['results'])
+    return configFields;
+}
+
+sapTransforms.appDependentFieldSet = function (appDependentFieldList) {
+    var response = [];
+    appDependentFieldList.forEach(element => {
+        var obj = {};
+        obj['sectionId'] = element['Sectionid'];
+        obj['sectionSapName'] = element['Sectionsapname'];
+        obj['fieldName'] = element['Fieldname'];
+        obj['dependentView'] = element['DependentView'];
+        response.push(obj);
+    });
+    return response;
+}
+
 sapTransforms.mapConfigDetails = function (configDetails, configName = '', newConfig = false) {
     var response = {
-        data: {}
+        data: {},
+        dropdownList: prepareDropDownMasterList(_.filter(configDetails, function (configData) {
+            return (configData.Fieldtype === 'F4' || configData.Fieldtype === 'DD') && !configData.Hidden;
+        }))
     };
     const filterSections = _.filter(configDetails, function (configData) {
         return configData.Sectionid !== '';
@@ -70,6 +108,20 @@ sapTransforms.mapConfigDetails = function (configDetails, configName = '', newCo
     response.data.accordions = prepareAccordionsConfig(filterSections, newConfig);
     response.data.tabs = prepareTabsConfig(filterTabs);
     response.data.fields = mapConfigFields(filterFields);
+    return response;
+}
+
+sapTransforms.mapConfigTableData = function (tableData, isLongText) {
+    var response = {
+        accordions: [],
+        dropdownList: prepareDropDownMasterList(_.filter(tableData, function (configData) {
+            return (configData.Fieldtype === 'F4' || configData.Fieldtype === 'DD') && !configData.Hidden;
+        }))
+    };
+    const filterTables = _.filter(tableData, function (tableRow) {
+        return tableRow.Table === true;
+    });
+    response['accordions'] = prepareTableSectionsConfig(filterTables, isLongText);
     return response;
 }
 
@@ -107,22 +159,79 @@ sapTransforms.mapDropdownValues = function (fieldsList) {
     var response = {
         dropdownNav: []
     };
+    // console.log(fieldsList.length);
     fieldsList.forEach(fieldList => {
         var obj = {};
         obj.fieldName = fieldList['Fieldname'];
+        obj['fieldstruc'] = fieldList['Fieldstruc'];
         obj.appId = fieldList['Appid'];
         obj.dropdowns = [];
         if (fieldList['Nav_FieldToDdvalues'] && fieldList['Nav_FieldToDdvalues']['results'] && fieldList['Nav_FieldToDdvalues']['results'].length > 0) {
             fieldList['Nav_FieldToDdvalues']['results'].forEach(element => {
                 var ddnObj = {};
                 ddnObj['key'] = element['Key'];
-                ddnObj['value'] = element['Value'];
+                ddnObj['value'] = element['Value'] ? element['Value'] : element['Key'];
                 obj.dropdowns.push(ddnObj);
             });
         }
         response.dropdownNav.push(obj);
     });
+    // console.log(response.dropdownNav.length);
     return response;
+}
+
+function prepareDropDownMasterList(filtered_DD_F4) {
+    var ddList = [];
+    // console.log(filtered_DD_F4);
+    filtered_DD_F4.forEach(ddnValue => {
+        var obj = {};
+        obj['Appid'] = ddnValue.Appid;
+        obj['Fieldname'] = ddnValue.Fieldname;
+        obj['Sectionsapname'] = ddnValue.Sectionsapname;
+        obj['Nav_FieldToDdvalues'] = [];
+        ddList.push(obj);
+    });
+    return ddList;
+}
+
+function prepareTableSectionsConfig(filterTables, isLongText) {
+    return _.chain(filterTables)
+        .groupBy('Sectionid')
+        .map((fields, sectionId) => ({
+            sectionId,
+            sectionName: _.get(_.find(fields, 'Sectionname'), 'Sectionname'),
+            collapsable: filterTables[0]['Isexpandable'],
+            collapsed: _.get(_.find(fields, 'Isexpanded'), 'Isexpanded'),
+            isTable: true,
+            isLongText: isLongText,
+            tabs: prepareTableTab(fields, sectionId, isLongText)
+        }))
+        .value();
+}
+
+function prepareTableTab(tabFields, sectionId, isLongText) {
+    return _.chain(tabFields)
+        .groupBy('Tabid')
+        .map((fields, tabId) => ({
+            tabId,
+            tabName: _.get(_.find(fields, 'Tabname'), 'Tabname'),
+            isLongText: isLongText,
+            active: false,
+            tabTableRows: prepareTabTableRows(fields, tabId, sectionId)
+        }))
+        .value();
+}
+
+function prepareTabTableRows(tabFields, tabId, sectionId) {
+    return _.chain(tabFields)
+        .groupBy('Sequence')
+        .map((fields, Sequence) => ({
+            sequence: Sequence,
+            tabId,
+            sectionId,
+            rows: mapConfigFields(fields)
+        }))
+        .value();
 }
 
 function prepareAccordionsConfig(filteredAccordions, newConfig = false) {
@@ -133,6 +242,7 @@ function prepareAccordionsConfig(filteredAccordions, newConfig = false) {
             sectionName: _.get(_.find(fields, 'Sectionname'), 'Sectionname'),
             collapsable: filteredAccordions[0]['Isexpandable'],
             collapsed: _.get(_.find(fields, 'Isexpanded'), 'Isexpanded'),
+            isTable: false,
             fields: mapConfigFields(fields, newConfig)
         }))
         .value();
@@ -171,21 +281,21 @@ function mapConfigFields(appFields, newConfig = false) {
     var response = [];
     appFields.forEach(element => {
         var obj = {};
-        obj['hidden'] = element['Hiden'];
+        obj['hidden'] = element['Hidden'];
         obj['required'] = element['Required'];
         obj['sectionSapName'] = element['Sectionsapname'];
-        obj['optional'] =  element['Hiden'] ? false : (element['Required'] ? true : newConfig ? !element['Optional'] : element['Optional']);
+        obj['optional'] = element['Hidden'] ? false : (element['Required'] ? true : newConfig ? !element['Optional'] : element['Optional']);
         obj['displayName'] = element['Fieldlabel'];
         obj['userRole'] = element['Userrole'];
         obj['fieldName'] = element['Fieldname'];
         obj['fieldValue'] = element['FieldValue'];
         obj['selected'] = element['Selected'];
         obj['dataType'] = element['Datatype'];
-        obj['fieldType'] = (element['Fieldtype'] === '' || element['Fieldtype'] === 'C') ? (element['Datatype'] === '' ? 'C' : element['Datatype'] ) : element['Fieldtype'];
+        obj['fieldType'] = (element['Fieldtype'] === '' || element['Fieldtype'] === 'C') ? (element['Datatype'] === '' ? 'C' : element['Datatype']) : element['Fieldtype'];
         obj['length'] = element['Leng'];
         obj['sequence'] = element['Sequence'];
         obj['configSave'] = element['Configsave'];
-        obj['sectionsapname'] = element['Sectionsapname'];
+        obj['refField'] = element['Reffield'];
         response.push(obj);
     });
     return response;
@@ -198,13 +308,31 @@ sapTransforms.parseRequest = function (request, Indicator) {
         configId: request.configId
     }
     if (request.accordions && request.accordions.length) {
-        parsedData = mergeArray(parsedData, parseAccordions(request.accordions, commonData, Indicator));
+        var accordionDetails = _.filter(request.accordions, function (tableRow) {
+            return tableRow.isTable === false;
+        });
+        parsedData = mergeArray(parsedData, parseAccordions(accordionDetails, commonData, Indicator));
     }
     if (request.tabs && request.tabs.length) {
         parsedData = mergeArray(parsedData, parseTabs(request.tabs, commonData, Indicator));
     }
     if (request.fields && request.fields.length) {
         parsedData = mergeArray(parsedData, parseFields(request.fields, commonData, Indicator));
+    }
+    return parsedData;
+}
+
+sapTransforms.parseSectionTabTablesRequest = function (request, Indicator, isLongText = false) {
+    var parsedData = [];
+    const commonData = {
+        appId: request.appId,
+        configId: request.configId
+    }
+    if (request.accordions && request.accordions.length) {
+        var tableDetails = _.filter(request.accordions, function (tableRow) {
+            return (tableRow.isTable === true && tableRow.isLongText === isLongText);
+        });
+        parsedData = mergeArray(parsedData, parseSectionTables(tableDetails, commonData, Indicator));
     }
     return parsedData;
 }
@@ -233,12 +361,40 @@ function mergeArray(targetArray, srcArray) {
     }
 }
 
+function parseSectionTables(sectionTabsTables, commonData, Indicator) {
+    const parsedSectionTabsTablesData = [];
+    _.forEach(sectionTabsTables, function (value, key) {
+        const parsedSectionTabTableObj = {
+            Appid: commonData.appId,
+            Table: true,
+            Tabid: '',
+            Tabname: '',
+            Configid: commonData.configId,
+            Sectionid: value.sectionId,
+            Sectionname: value.sectionName,
+            Isexpanded: value.collapsed,
+            Isexpandable: value.collapsable
+        };
+        _.forEach(value.tabs, function (tabVal) {
+            parsedSectionTabTableObj['Tabid'] = tabVal.tabId;
+            parsedSectionTabTableObj['Tabname'] = tabVal.tabName;
+            _.forEach(tabVal.tabTableRows, function (tabTableRow) {
+                parsedSectionTabTableObj['Sequence'] = tabTableRow.sequence;
+                _.forEach(tabTableRow.rows, function (row) {
+                    parsedSectionTabsTablesData.push(_.cloneDeep(parseCommonFields(parsedSectionTabTableObj, row, Indicator)));
+                });
+            });
+        });
+    });
+    return parsedSectionTabsTablesData;
+}
+
 function parseAccordions(accordions, commonData, Indicator) {
     const parsedAccordionsData = [];
     _.forEach(accordions, function (value, key) {
         const parsedAccordionObj = {
             Appid: commonData.appId,
-            Table: '',
+            Table: false,
             Tabid: '',
             Tabname: '',
             Configid: commonData.configId,
@@ -304,7 +460,7 @@ function parseFields(fields, commonData) {
 }
 
 function parseCommonFields(parentObj, fields, Indicator) {
-    parentObj.Hiden = fields.hidden;
+    parentObj.Hidden = fields.hidden;
     parentObj.Optional = fields.optional;
     parentObj.Sequence = fields.sequence;
     parentObj.Fieldlabel = fields.displayName;
@@ -313,12 +469,11 @@ function parseCommonFields(parentObj, fields, Indicator) {
     parentObj['FieldValue'] = fields.fieldValue;
     parentObj.Required = fields.required;
     parentObj.Parentname = '';
-    parentObj.Table = false;
-    // parentObj.Selected = fields.selected;
     parentObj.Datatype = fields.dataType;
     parentObj.Leng = fields.length;
-    parentObj.Sectionsapname = fields.sectionsapname;
+    parentObj.Sectionsapname = fields.sectionSapName;
     // parentObj.Indicator = Indicator;
+    parentObj['Reffield'] = fields.refField;
     return parentObj;
 }
 
